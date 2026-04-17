@@ -439,29 +439,65 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 }
 
 # 3.5.2
-:COC SREG","^reg_dst is ( op6=0x8 & reg_dst ) ... & SREG 
+# COC - Compare Ones Corresponding
+:COC SREG","^reg_dst is ( op6=0x8 & reg_dst ) ... & SREG
 {
-
+    local s:2 = SREG;
+    local reg_addr:2 = WP + (2 * reg_dst);
+    local d:2 = *:2 reg_addr;
+    local result:2 = s & d;
+    $(EQ) = (result == s);
 }
 
-:CZC SREG","^reg_dst is ( op6=0x9 & reg_dst ) ... & SREG 
+# CZC - Compare Zeros Corresponding
+:CZC SREG","^reg_dst is ( op6=0x9 & reg_dst ) ... & SREG
 {
-
+    local s:2 = SREG;
+    local reg_addr:2 = WP + (2 * reg_dst);
+    local d:2 = *:2 reg_addr;
+    local result:2 = s & d;
+    $(EQ) = (result == 0);
 }
 
-:XOR SREG","^reg_dst is ( op6=0xa & reg_dst ) ... & SREG 
+# XOR - Exclusive Or
+:XOR SREG","^reg_dst is ( op6=0xa & reg_dst ) ... & SREG
 {
-
+    local s:2 = SREG;
+    local reg_addr:2 = WP + (2 * reg_dst);
+    local d:2 = *:2 reg_addr;
+    local result:2 = s ^ d;
+    $(LGT) = (result != 0);
+    $(AGT) = (result s> 0);
+    $(EQ)  = (result == 0);
+    *:2 reg_addr = result;
 }
 
-:MPY SREG","^reg_dst is ( op6=0xe & reg_dst ) ... & SREG 
+# MPY - Multiply unsigned, result is 32-bit in reg_dst:reg_dst+1
+:MPY SREG","^reg_dst is ( op6=0xe & reg_dst ) ... & SREG
 {
-
+    local s:2 = SREG;
+    local reg_addr:2 = WP + (2 * reg_dst);
+    local d:2 = *:2 reg_addr;
+    local result:4 = zext(d) * zext(s);
+    *:2 reg_addr = result(2);
+    *:2 (reg_addr + 2) = result:2;
 }
 
-:DIV SREG","^reg_dst is ( op6=0xf & reg_dst ) ... & SREG 
+# DIV - Divide unsigned, dividend is 32-bit in reg_dst:reg_dst+1
+:DIV SREG","^reg_dst is ( op6=0xf & reg_dst ) ... & SREG
 {
-
+    local s:2 = SREG;
+    local reg_addr:2 = WP + (2 * reg_dst);
+    local dhi:2 = *:2 reg_addr;
+    local dlo:2 = *:2 (reg_addr + 2);
+    local dividend:4 = (zext(dhi) << 16) | zext(dlo);
+    local divisor:4 = zext(s);
+    local quotient:4 = dividend / divisor;
+    local remainder:4 = dividend % divisor;
+    # OV set if quotient overflows 16 bits
+    $(O) = (quotient > 0xFFFF);
+    *:2 reg_addr = quotient:2;
+    *:2 (reg_addr + 2) = remainder:2;
 }
 
 # 3.5.3
@@ -653,27 +689,45 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 
 
 # 3.5.5 CRU multi
-:LDCR SREG^","^crum_c is ( crum_op=0xc & crum_c ) ... & SREG 
+:LDCR SREG^","^crum_c is ( crum_op=0xc & crum_c ) ... & SREG
 {
-
+    # Transfer crum_c bits from SREG to CRU - CRU bus not modeled
+    local s:2 = SREG;
+    s = s;
 }
-:STCR SREG^","^crum_c is ( crum_op=0xd & crum_c ) ... & SREG 
-{
 
+:STCR SREG^","^crum_c is ( crum_op=0xd & crum_c ) ... & SREG
+{
+    # Transfer crum_c bits from CRU into SREG destination
+    # CRU bus not modeled
+    local cru_base:2 = *:2 (WP + 24);  # R12
+    local addr:2 = cru_base >> 1;
+    addr = addr;  # suppress unused warning
 }
 
 # 3.5.6 CRU single bit
 :SBO crus_sdis is crus_op=0x1d & crus_sdis
 {
-
+    # Set CRU bit to 1 - CRU not modeled
+    local cru_base:2 = *:2 (WP + 24);  # R12
+    local addr:2 = (cru_base >> 1) + crus_sdis;
+    addr = addr;
 }
+
 :SBZ crus_sdis is crus_op=0x1e & crus_sdis
 {
-
+    # Set CRU bit to 0 - CRU not modeled
+    local cru_base:2 = *:2 (WP + 24);  # R12
+    local addr:2 = (cru_base >> 1) + crus_sdis;
+    addr = addr;
 }
+
 :TB crus_sdis is crus_op=0x1f & crus_sdis
 {
-
+    # Test CRU bit - result in EQ - CRU not modeled
+    local cru_base:2 = *:2 (WP + 24);  # R12
+    local addr:2 = (cru_base >> 1) + crus_sdis;
+    $(EQ) = addr != addr;  # unknown - model as 0
 }
 
 # 3.5.7
@@ -738,21 +792,86 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 
 
 # 3.5.8
-:SLA shift_reg^","^shift_count is shift_op=0x0a  & shift_reg & shift_count
+# SLA - Shift Left Arithmetic
+:SLA shift_reg^","^shift_count is shift_op=0x0a & shift_reg & shift_count
 {
-
+    local reg_addr:2 = WP + (2 * shift_reg);
+    local d:2 = *:2 reg_addr;
+    local count:2 = shift_count;
+    # if count==0, use R0 & 0xF, if still 0 then 16
+    if (count != 0) goto <do_shift>;
+    count = *:2 WP & 0xF;
+    if (count != 0) goto <do_shift>;
+    count = 16;
+    <do_shift>
+    local result:2 = d << count;
+    local last_bit:2 = (d << (count - 1)) >> 15;
+    $(C)   = last_bit:1;
+    $(LGT) = (result != 0);
+    $(AGT) = (result s> 0);
+    $(EQ)  = (result == 0);
+    $(O)   = (((d ^ result) >> 15) & 1) != 0;
+    *:2 reg_addr = result;
 }
-:SRA shift_reg^","^shift_count is shift_op=0x08  & shift_reg & shift_count
-{
 
+# SRA - Shift Right Arithmetic (signed)
+:SRA shift_reg^","^shift_count is shift_op=0x08 & shift_reg & shift_count
+{
+    local reg_addr:2 = WP + (2 * shift_reg);
+    local d:2 = *:2 reg_addr;
+    local count:2 = shift_count;
+    if (count != 0) goto <do_shift>;
+    count = *:2 WP & 0xF;
+    if (count != 0) goto <do_shift>;
+    count = 16;
+    <do_shift>
+    local last_bit:2 = (d >> (count - 1)) & 1;
+    local result:2 = d s>> count;
+    $(C)   = last_bit:1;
+    $(LGT) = (result != 0);
+    $(AGT) = (result s> 0);
+    $(EQ)  = (result == 0);
+    *:2 reg_addr = result;
 }
-:SRC shift_reg^","^shift_count is shift_op=0x0b  & shift_reg & shift_count
-{
 
+# SRC - Shift Right Circular
+:SRC shift_reg^","^shift_count is shift_op=0x0b & shift_reg & shift_count
+{
+    local reg_addr:2 = WP + (2 * shift_reg);
+    local d:2 = *:2 reg_addr;
+    local count:2 = shift_count;
+    if (count != 0) goto <do_shift>;
+    count = *:2 WP & 0xF;
+    if (count != 0) goto <do_shift>;
+    count = 16;
+    <do_shift>
+    local result:2 = (d >> count) | (d << (16 - count));
+    local last_bit:2 = (result >> 15) & 1;
+    $(C)   = last_bit:1;
+    $(LGT) = (result != 0);
+    $(AGT) = (result s> 0);
+    $(EQ)  = (result == 0);
+    *:2 reg_addr = result;
 }
-:SRL shift_reg^","^shift_count is shift_op=0x09  & shift_reg & shift_count
-{
 
+# SRL - Shift Right Logical
+:SRL shift_reg^","^shift_count is shift_op=0x09 & shift_reg & shift_count
+{
+    local reg_addr:2 = WP + (2 * shift_reg);
+    local d:2 = *:2 reg_addr;
+    local count:2 = shift_count;
+    if (count != 0) goto <do_shift>;
+    count = *:2 WP & 0xF;
+    if (count != 0) goto <do_shift>;
+    count = 16;
+    <do_shift>
+    local last_bit:2 = (d >> (count - 1)) & 1;
+    local result:2 = d >> count;
+    $(C)   = last_bit:1;
+    $(LGT) = (result != 0);
+    $(AGT) = (result s> 0);
+    $(EQ)  = (result == 0);
+    *:2 reg_addr = result;
 }
 
 # 3.5.9
@@ -849,23 +968,29 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 
 
 # 3.5.13
+# 3.5.13
 :IDLE is op11=0x1a
 {
-
+    # Halt CPU until interrupt - modeled as nop for static analysis
 }
+
 :RSET is op11=0x1b
 {
-
+    # Reset - clear ST bits 0-11
+    ST = ST & 0xF000;
 }
+
 :CKOF is op11=0x1e
 {
-
+    # Clock off - no meaningful pcode model
 }
+
 :CKON is op11=0x1d
 {
-
+    # Clock on - no meaningful pcode model
 }
+
 :LREX is op11=0x1f
 {
-
+    # Load and restart execution - no meaningful pcode model
 }
