@@ -814,7 +814,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     <do_shift>
     result = d << count;
     last_bit = (d << (count - 1)) >> 15;
-    $(C)   = last_bit:1;
+    $(C)   = (last_bit != 0);
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
@@ -839,7 +839,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     <do_shift>
     last_bit = (d >> (count - 1)) & 1;
     result = d s>> count;
-    $(C)   = last_bit:1;
+    $(C)   = (last_bit != 0);
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
@@ -861,7 +861,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     <do_shift>
     result = (d >> count) | (d << (16 - count));
     last_bit = (result >> 15) & 1;
-    $(C)   = last_bit:1;
+    $(C)   = (last_bit != 0);
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
@@ -883,7 +883,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     <do_shift>
     last_bit = (d >> (count - 1)) & 1;
     result = d >> count;
-    $(C)   = last_bit:1;
+    $(C)   = (last_bit != 0);
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
@@ -945,7 +945,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 # LIMI - Load interrupt mask immediate
 :LIMI ">"^imm16 is load_op=0x18; imm16
 {
-    $(IM) = imm16:1 & 0xF;
+    $(IM) = imm16 & 0xF;
 }
 
 # 3.5.11

@@ -4,8 +4,9 @@
   <global>
     <range space="RAM"/>
   </global>
+  <stackpointer register="WP" space="RAM"/>
   <data_organization>
-	<pointer_size value="2" />
+    <pointer_size value="2" />
   </data_organization>
   <default_proto>
     <prototype name="__stdcall" extrapop="2" stackshift="0">
