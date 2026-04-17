@@ -814,7 +814,9 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
-    $(O)   = (((d ^ result) >> 15) & 1) != 0;
+    local msb_before:2 = (d >> 15) & 1;
+    local msb_after:2 = (result >> 15) & 1;
+    $(O) = (msb_before != msb_after);
     *:2 reg_addr = result;
 }
 
@@ -938,16 +940,16 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 
 # 3.5.11
 # STST - Store status register
-:STST shift_reg_d3 is shift_op9=0x016 & shift_reg_d3
+:STST reg_src is op11=0x016 & reg_src
 {
-    local reg_addr:2 = WP + (2 * shift_reg_d3);
+    local reg_addr:2 = WP + (2 * reg_src);
     *:2 reg_addr = ST;
 }
 
 # STWP - Store workspace pointer
-:STWP shift_reg_d3 is shift_op9=0x015 & shift_reg_d3
+:STWP reg_src is op11=0x015 & reg_src
 {
-    local reg_addr:2 = WP + (2 * shift_reg_d3);
+    local reg_addr:2 = WP + (2 * reg_src);
     *:2 reg_addr = WP;
 }
 
