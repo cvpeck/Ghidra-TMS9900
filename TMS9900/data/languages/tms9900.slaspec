@@ -55,6 +55,7 @@ define token operand (16)
     op3  = (13,15)
 	op6  = (10,15)
 	op8  = (8,15)
+	op9  = (7,15)
     op10  = (6,15)
     op11  = (5,15)
 
@@ -63,6 +64,7 @@ define token operand (16)
     mode_b   = (12,12)
     reg_td  = (10,11)
     reg_dst = (6,9) dec
+    reg_d3  = (3,6) dec
     reg_dnr = (6,9) 
     xop_dst = (6,9) dec
 	reg_ts  = (4,5)
@@ -128,6 +130,8 @@ define token jmp (16)
 #SHIFT
 define token shift (16)
 	shift_op  = (8,15)
+	shift_op9 = (7,15)
+	shift_reg_d3 = (3,6) dec
 	shift_count = (4,7)
 	shift_reg = (0,3)
 ;
@@ -154,7 +158,7 @@ define token load (16)
 
 
 
-attach names [ reg_dst reg_src iri_reg shift_reg] [
+attach names [ reg_dst reg_src reg_d3 iri_reg shift_reg shift_reg_d3] [
 r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 ];
 
 #attach variables acc_4 [ A B ];
@@ -934,16 +938,16 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 
 # 3.5.11
 # STST - Store status register
-:STST reg_dst is op11=0x16 & reg_dst
+:STST shift_reg_d3 is shift_op9=0x016 & shift_reg_d3
 {
-    local reg_addr:2 = WP + (2 * reg_dst);
+    local reg_addr:2 = WP + (2 * shift_reg_d3);
     *:2 reg_addr = ST;
 }
 
 # STWP - Store workspace pointer
-:STWP reg_dst is op11=0x15 & reg_dst
+:STWP shift_reg_d3 is shift_op9=0x015 & shift_reg_d3
 {
-    local reg_addr:2 = WP + (2 * reg_dst);
+    local reg_addr:2 = WP + (2 * shift_reg_d3);
     *:2 reg_addr = WP;
 }
 
