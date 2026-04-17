@@ -376,63 +376,171 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 
 
 # 3.5.4
+# B - Branch, simple jump to address in source operand
 :B SREG is op10=0x11 ... & SREG 
 {
-
+    local target:2 = SREG;
+    goto [target];
 }
+
+# BL - Branch and Link, saves return address in R11
 :BL SREG is op10=0x1a ... & SREG 
 {
-
+    # Save return address (next instruction) into workspace R11
+    local r11_addr:2 = WP + 22;    # R11 = WP + (11 * 2)
+    *:2 r11_addr = inst_next;
+    
+    local target:2 = SREG;
+    call [target];
 }
+
+# BLWP - Branch and Link with Workspace Pointer
+# Performs a full context switch using a vector address
 :BLWP SREG is op10=0x10 ... & SREG 
 {
-
+    # Read vector address from source operand
+    local vector:2 = SREG;
+    
+    # Read new WP and PC from vector table
+    local new_wp:2 = *:2 vector;
+    local new_pc:2 = *:2 (vector + 2);
+    
+    # Save context into NEW workspace registers R13, R14, R15
+    local r13_addr:2 = new_wp + 26;   # R13 = new_WP + (13 * 2)
+    local r14_addr:2 = new_wp + 28;   # R14 = new_WP + (14 * 2)
+    local r15_addr:2 = new_wp + 30;   # R15 = new_WP + (15 * 2)
+    
+    *:2 r13_addr = WP;          # Save old WP in new R13
+    *:2 r14_addr = inst_next;   # Save return PC in new R14
+    *:2 r15_addr = ST;          # Save old ST in new R15
+    
+    # Switch workspace
+    WP = new_wp;
+    
+    call [new_pc];
 }
+
+# CLR - Clear operand (set to 0)
 :CLR SREG is op10=0x13 ... & SREG 
 {
-
+    SREG = 0;
 }
+
+# SETO - Set operand to all ones (0xFFFF)
 :SETO SREG is op10=0x1c ... & SREG 
 {
-
+    SREG = 0xFFFF;
 }
+
+# INV - Invert all bits
 :INV SREG is op10=0x15 ... & SREG 
 {
-
+    local tmp:2 = ~SREG;
+    # Set status bits
+    $(LGT) = (tmp > 0);
+    $(AGT) = (tmp s> 0);
+    $(EQ)  = (tmp == 0);
+    SREG = tmp;
 }
+
+# NEG - Negate (two's complement)
 :NEG SREG is op10=0x14 ... & SREG 
 {
-
+    local tmp:2 = -SREG;
+    # Set status bits
+    $(LGT) = (tmp > 0);
+    $(AGT) = (tmp s> 0);
+    $(EQ)  = (tmp == 0);
+    $(C)   = (SREG != 0);
+    $(O)   = (SREG == 0x8000);
+    SREG = tmp;
 }
+
+# ABS - Absolute value
 :ABS SREG is op10=0x1d ... & SREG 
 {
-
+    local tmp:2 = SREG;
+    local result:2;
+    $(O) = (tmp == 0x8000);
+    if (tmp s>= 0) goto <positive>;
+        result = -tmp;
+        goto <done>;
+    <positive>
+        result = tmp;
+    <done>
+    $(LGT) = (result > 0);
+    $(AGT) = (result s> 0);
+    $(EQ)  = (result == 0);
+    $(C)   = 0;
+    SREG = result;
 }
+
+# SWPB - Swap bytes
 :SWPB SREG is op10=0x1b ... & SREG 
 {
-
+    local tmp:2 = SREG;
+    local hi:1 = tmp(1);    # high byte
+    local lo:1 = tmp:1;     # low byte
+    local result:2 = (zext(lo) << 8) | zext(hi);
+    SREG = result;
 }
+
+# INC - Increment by 1
 :INC SREG is op10=0x16 ... & SREG 
 {
-
+    local tmp:2 = SREG + 1;
+    $(LGT) = (tmp > 0);
+    $(AGT) = (tmp s> 0);
+    $(EQ)  = (tmp == 0);
+    $(C)   = (tmp == 0);           # carry if wrapped around
+    $(O)   = (SREG == 0x7FFF);    # overflow if was max positive
+    SREG = tmp;
 }
+
+# INCT - Increment by 2
 :INCT SREG is op10=0x17 ... & SREG 
 {
-
+    local tmp:2 = SREG + 2;
+    $(LGT) = (tmp > 0);
+    $(AGT) = (tmp s> 0);
+    $(EQ)  = (tmp == 0);
+    $(C)   = (tmp <  2);           # carry if wrapped around
+    $(O)   = (SREG == 0x7FFF) || (SREG == 0x7FFE);
+    SREG = tmp;
 }
+
+# DEC - Decrement by 1
 :DEC SREG is op10=0x18 ... & SREG 
 {
-
+    local tmp:2 = SREG - 1;
+    $(LGT) = (tmp > 0);
+    $(AGT) = (tmp s> 0);
+    $(EQ)  = (tmp == 0);
+    $(C)   = (SREG != 0);         # carry if no borrow
+    $(O)   = (SREG == 0x8000);   # overflow if was min negative
+    SREG = tmp;
 }
+
+# DECT - Decrement by 2
 :DECT SREG is op10=0x19 ... & SREG 
 {
-
+    local tmp:2 = SREG - 2;
+    $(LGT) = (tmp > 0);
+    $(AGT) = (tmp s> 0);
+    $(EQ)  = (tmp == 0);
+    $(C)   = (SREG > 1);          # carry if no borrow
+    $(O)   = (SREG == 0x8000) || (SREG == 0x8001);
+    SREG = tmp;
 }
+
+# X - Execute instruction at source address
 :X SREG is op10=0x12 ... & SREG 
 {
-
+    # X executes the instruction at the source address
+    # This is difficult to model statically, treated as indirect call
+    local target:2 = SREG;
+    call [target];
 }
-
 
 
 # 3.5.5 CRU multi
@@ -585,10 +693,22 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 }
 
 # 3.5.12
+# RTWP - Return with Workspace Pointer restore
 :RTWP is op11=0x1c
 {
-
+    # Restore context from current R13, R14, R15
+    local r13_addr:2 = WP + 26;   # R13 = WP + (13 * 2)
+    local r14_addr:2 = WP + 28;   # R14 = WP + (14 * 2)
+    local r15_addr:2 = WP + 30;   # R15 = WP + (15 * 2)
+    
+    WP = *:2 r13_addr;            # Restore old WP
+    ST = *:2 r15_addr;            # Restore old ST
+    
+    local ret_addr:2 = *:2 r14_addr;  # Get return PC
+    return [ret_addr];
 }
+
+
 
 
 
