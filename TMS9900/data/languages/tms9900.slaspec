@@ -280,11 +280,12 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     local s:2 = SREG;
     local d:2 = DREG;
     local result:2 = d + s;
-    $(LGT) = (result > 0);
+    local ov:2 = (s ^ ~d) & (s ^ result);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
-    $(C)   = (result < d);                          # carry if wrapped
-    $(O)   = (((s ^ ~d) & (s ^ result)) >> 15) & 1; # overflow
+    $(C)   = (result < d);
+    $(O)   = (ov >> 15) != 0;
     DREG = result;
 }
 
@@ -294,11 +295,12 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     local s:1 = SREG:1;
     local d:1 = DREG:1;
     local result:1 = d + s;
-    $(LGT) = (result > 0);
+    local ov:1 = (s ^ ~d) & (s ^ result);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     $(C)   = (result < d);
-    $(O)   = (((s ^ ~d) & (s ^ result)) >> 7) & 1;
+    $(O)   = (ov >> 7) != 0;
     $(P)   = popcount(result) & 1;
     DREG = zext(result);
 }
@@ -309,11 +311,12 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     local s:2 = SREG;
     local d:2 = DREG;
     local result:2 = d - s;
-    $(LGT) = (result > 0);
+    local ov:2 = (d ^ s) & (d ^ result);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
-    $(C)   = (d >= s);                              # carry if no borrow
-    $(O)   = (((d ^ s) & (d ^ result)) >> 15) & 1; # overflow
+    $(C)   = (d >= s);
+    $(O)   = (ov >> 15) != 0;
     DREG = result;
 }
 
@@ -323,14 +326,32 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     local s:1 = SREG:1;
     local d:1 = DREG:1;
     local result:1 = d - s;
-    $(LGT) = (result > 0);
+    local ov:1 = (d ^ s) & (d ^ result);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     $(C)   = (d >= s);
-    $(O)   = (((d ^ s) & (d ^ result)) >> 7) & 1;
+    $(O)   = (ov >> 7) != 0;
     $(P)   = popcount(result) & 1;
     DREG = zext(result);
 }
+
+# AI - Add immediate  (only ONE copy of this)
+:AI iri_reg^",>"^imm16 is iri_op=0x11 & iri_reg; imm16
+{
+    local reg_addr:2 = WP + (2 * iri_reg);
+    local d:2 = *:2 reg_addr;
+    local s:2 = imm16;
+    local result:2 = d + s;
+    local ov:2 = (s ^ ~d) & (s ^ result);
+    $(LGT) = (result != 0);
+    $(AGT) = (result s> 0);
+    $(EQ)  = (result == 0);
+    $(C)   = (result < d);
+    $(O)   = (ov >> 15) != 0;
+    *:2 reg_addr = result;
+}
+
 
 # C - Compare word
 :C SREG","^DREG is ( op3=0x4 & mode_b=0) ... & SREG ... & DREG
@@ -358,7 +379,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :SOC SREG","^DREG is ( op3=0x7 & mode_b=0 ) ... & SREG ... & DREG
 {
     local result:2 = DREG | SREG;
-    $(LGT) = (result > 0);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     DREG = result;
@@ -368,7 +389,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :SOCB SREG","^DREG is ( op3=0x7 & mode_b=1 ) ... & SREG ... & DREG
 {
     local result:1 = DREG:1 | SREG:1;
-    $(LGT) = (result > 0);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     $(P)   = popcount(result) & 1;
@@ -379,7 +400,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :SZC SREG","^DREG is ( op3=0x2 & mode_b=0)  ... & SREG ... & DREG
 {
     local result:2 = DREG & ~SREG;
-    $(LGT) = (result > 0);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     DREG = result;
@@ -389,7 +410,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :SZCB SREG","^DREG is ( op3=0x2 & mode_b=1 )  ... & SREG ... & DREG
 {
     local result:1 = DREG:1 & ~SREG:1;
-    $(LGT) = (result > 0);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     $(P)   = popcount(result) & 1;
@@ -400,7 +421,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :MOV SREG","^DREG is ( op3=0x6 & mode_b=0 ) ... & SREG ... & DREG
 {
     local tmp:2 = SREG;
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     DREG = tmp;
@@ -410,7 +431,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :MOVB SREG^","^DREG is ( op3=0x6 & mode_b=1) ... & SREG ... & DREG
 {
     local tmp:1 = SREG:1;       # Take high byte of source
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     $(P)   = popcount(tmp) & 1; # Parity bit
@@ -444,19 +465,24 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 }
 
 # 3.5.3
-:XOP SREG^","^reg_dnr is ( op6=0xb & reg_dnr  ) ...  & SREG 
+:XOP SREG^","^reg_dnr is ( op6=0xb & reg_dnr ) ... & SREG
 {
- 	local tmpwp:2 = 40 + 2* reg_dnr;
- 	local tmppc:2 = 42 + 2* reg_dnr;
-	call [tmppc];
-    #export *:2 tmp2;
+    # Get new WP from XOP vector table (base 0x0040)
+    local vec_base:2 = 0x0040 + (2 * reg_dnr);
+    local new_wp:2 = *:2 vec_base;
+    local new_pc:2 = *:2 (vec_base + 2);
+
+    # Save context into new workspace
+    *:2 (new_wp + 22) = SREG;   # R11 = src operand address
+    *:2 (new_wp + 26) = WP;     # R13 = old WP
+    *:2 (new_wp + 28) = inst_next;  # R14 = return PC
+    *:2 (new_wp + 30) = ST;     # R15 = old ST
+
+    # Switch context
+    WP = new_wp;
+    ST[13,1] = 1;               # Set X flag
+    call [new_pc];
 }
-
-#:XOP ">@"imm16^","^reg_dst is ( op6=0xb & reg_dst & reg_ts=0 ) ...  & SREG ;imm16
-#{#
-#
-#}
-
 
 # 3.5.4
 # B - Branch, simple jump to address in source operand
@@ -520,7 +546,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 {
     local tmp:2 = ~SREG;
     # Set status bits
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     SREG = tmp;
@@ -531,7 +557,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 {
     local tmp:2 = -SREG;
     # Set status bits
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     $(C)   = (SREG != 0);
@@ -551,7 +577,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     <positive>
         result = tmp;
     <done>
-    $(LGT) = (result > 0);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     $(C)   = 0;
@@ -572,7 +598,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :INC SREG is op10=0x16 ... & SREG 
 {
     local tmp:2 = SREG + 1;
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     $(C)   = (tmp == 0);           # carry if wrapped around
@@ -584,7 +610,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :INCT SREG is op10=0x17 ... & SREG 
 {
     local tmp:2 = SREG + 2;
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     $(C)   = (tmp <  2);           # carry if wrapped around
@@ -596,7 +622,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :DEC SREG is op10=0x18 ... & SREG 
 {
     local tmp:2 = SREG - 1;
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     $(C)   = (SREG != 0);         # carry if no borrow
@@ -608,7 +634,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 :DECT SREG is op10=0x19 ... & SREG 
 {
     local tmp:2 = SREG - 2;
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     $(C)   = (SREG > 1);          # carry if no borrow
@@ -735,25 +761,10 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 {
     local tmp:2 = imm16;
     local reg_addr:2 = WP + (2 * iri_reg);
-    $(LGT) = (tmp > 0);
+    $(LGT) = (tmp != 0);
     $(AGT) = (tmp s> 0);
     $(EQ)  = (tmp == 0);
     *:2 reg_addr = tmp;
-}
-
-# AI - Add immediate
-:AI iri_reg^",>"^imm16 is iri_op=0x11 & iri_reg; imm16
-{
-    local reg_addr:2 = WP + (2 * iri_reg);
-    local d:2 = *:2 reg_addr;
-    local s:2 = imm16;
-    local result:2 = d + s;
-    $(LGT) = (result > 0);
-    $(AGT) = (result s> 0);
-    $(EQ)  = (result == 0);
-    $(C)   = (result < d);
-    $(O)   = (((s ^ ~d) & (s ^ result)) >> 15) & 1;
-    *:2 reg_addr = result;
 }
 
 # ANDI - And immediate
@@ -761,7 +772,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 {
     local reg_addr:2 = WP + (2 * iri_reg);
     local result:2 = *:2 reg_addr & imm16;
-    $(LGT) = (result > 0);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     *:2 reg_addr = result;
@@ -772,7 +783,7 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
 {
     local reg_addr:2 = WP + (2 * iri_reg);
     local result:2 = *:2 reg_addr | imm16;
-    $(LGT) = (result > 0);
+    $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
     *:2 reg_addr = result;
