@@ -807,15 +807,19 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     count = *:2 WP & 0xF;
     if (count != 0) goto <do_shift>;
     count = 16;
+    local result:2;
+    local last_bit:2;
+    local msb_before:2;
+    local msb_after:2;
     <do_shift>
-    local result:2 = d << count;
-    local last_bit:2 = (d << (count - 1)) >> 15;
+    result = d << count;
+    last_bit = (d << (count - 1)) >> 15;
     $(C)   = last_bit:1;
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
     $(EQ)  = (result == 0);
-    local msb_before:2 = (d >> 15) & 1;
-    local msb_after:2 = (result >> 15) & 1;
+    msb_before = (d >> 15) & 1;
+    msb_after = (result >> 15) & 1;
     $(O) = (msb_before != msb_after);
     *:2 reg_addr = result;
 }
@@ -830,9 +834,11 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     count = *:2 WP & 0xF;
     if (count != 0) goto <do_shift>;
     count = 16;
+    local last_bit:2;
+    local result:2;
     <do_shift>
-    local last_bit:2 = (d >> (count - 1)) & 1;
-    local result:2 = d s>> count;
+    last_bit = (d >> (count - 1)) & 1;
+    result = d s>> count;
     $(C)   = last_bit:1;
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
@@ -850,9 +856,11 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     count = *:2 WP & 0xF;
     if (count != 0) goto <do_shift>;
     count = 16;
+    local result:2;
+    local last_bit:2;
     <do_shift>
-    local result:2 = (d >> count) | (d << (16 - count));
-    local last_bit:2 = (result >> 15) & 1;
+    result = (d >> count) | (d << (16 - count));
+    last_bit = (result >> 15) & 1;
     $(C)   = last_bit:1;
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
@@ -870,9 +878,11 @@ DREG: "@"simm16"("reg_dst")" is reg_dst & reg_td=2 & reg_ts=2 & reg_dnr!=0 ;imm1
     count = *:2 WP & 0xF;
     if (count != 0) goto <do_shift>;
     count = 16;
+    local last_bit:2;
+    local result:2;
     <do_shift>
-    local last_bit:2 = (d >> (count - 1)) & 1;
-    local result:2 = d >> count;
+    last_bit = (d >> (count - 1)) & 1;
+    result = d >> count;
     $(C)   = last_bit:1;
     $(LGT) = (result != 0);
     $(AGT) = (result s> 0);
