@@ -1,1 +1,11 @@
 TMS9900/data/languages/*.sla
+
+# Gradle build artifacts
+.gradle/
+build/
+dist/
+
+# Gradle wrapper (generated, not committed)
+gradlew
+gradlew.bat
+gradle/
